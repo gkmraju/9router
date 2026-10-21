@@ -47,7 +47,7 @@ import { resolveQoderContextTier, applyQoderContextTier } from "../shared/qoder/
  * system in messages) and flatten multipart content arrays — EXCEPT image
  * blocks, which are preserved (see normalizeContent).
  */
-function normalizeMessages(messages) {
+function normalizeMessages(messages, { hoistDeveloper = false } = {}) {
   if (!Array.isArray(messages) || messages.length === 0) {
     return { messages: [], systemText: "" };
   }
@@ -55,7 +55,7 @@ function normalizeMessages(messages) {
   const out = [];
   for (const msg of messages) {
     if (!msg || typeof msg !== "object") continue;
-    if (msg.role === "system") {
+    if (msg.role === "system" || (hoistDeveloper && msg.role === "developer")) {
       const text = extractText(msg.content);
       if (text) systemParts.push(text);
       continue;
@@ -156,6 +156,20 @@ function extractText(content) {
   return String(content);
 }
 
+/** Qoder CN ignores payload.system; also pass it to the first user turn. */
+function foldSystemIntoFirstUser(messages, systemText) {
+  if (!systemText?.trim()) return messages;
+  const index = messages.findIndex((m) => m?.role === "user");
+  if (index === -1) return messages;
+  const user = messages[index];
+  const content = Array.isArray(user.content)
+    ? [{ type: OPENAI_BLOCK.TEXT, text: systemText }, ...user.content]
+    : `${systemText}\n\n${user.content || ""}`;
+  const result = messages.slice();
+  result[index] = { ...user, content };
+  return result;
+}
+
 function lastUserText(messages) {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
@@ -249,7 +263,12 @@ async function buildQoderRequestBody({ model, body, credentials, log, proxyOptio
     log?.warn?.("QODER", `attachment rewrite failed: ${err.message}`);
   }
 
-  const { messages, systemText } = normalizeMessages(incoming);
+  const { messages: normalizedMessages, systemText } = normalizeMessages(incoming, {
+    hoistDeveloper: region === "cn",
+  });
+  const messages = region === "cn"
+    ? foldSystemIntoFirstUser(normalizedMessages, systemText)
+    : normalizedMessages;
   const tools = body.tools;
   const isReasoning = !!modelConfig.is_reasoning;
   const maxOutputTokens = Number(modelConfig.max_output_tokens) || 0;
@@ -263,7 +282,7 @@ async function buildQoderRequestBody({ model, body, credentials, log, proxyOptio
     maxTokens = body.max_completion_tokens;
   }
 
-  const lastUser = lastUserText(messages);
+  const lastUser = lastUserText(normalizedMessages);
   const psd = credentials.providerSpecificData || {};
   const sessionId = stableHash("qoder-session", psd.userId, qoderKey);
   const recordId = stableChatRecordId(qoderKey, messages, tools, maxTokens);
@@ -272,7 +291,7 @@ async function buildQoderRequestBody({ model, body, credentials, log, proxyOptio
   // qodercli-style requests default to the smallest. Escalate when the prompt no longer fits.
   const tierChoice = resolveQoderContextTier(
     modelConfig,
-    { system: systemText, messages, tools },
+    { system: systemText, messages: normalizedMessages, tools },
     { preference: process.env[QODER_CONTEXT_TIER_ENV] },
   );
   if (tierChoice) {
@@ -752,6 +771,7 @@ export default QoderExecutor;
 // should import QoderExecutor and use its public methods.
 export const __test__ = {
   normalizeMessages,
+  foldSystemIntoFirstUser,
   wrapQoderSSE,
   buildQoderRequestBody,
   isBillingBlock,
