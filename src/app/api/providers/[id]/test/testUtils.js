@@ -973,6 +973,18 @@ export async function testSingleConnection(id) {
   const connection = await getProviderConnectionById(id);
   if (!connection) return { valid: false, error: "Connection not found", latencyMs: 0, testedAt: new Date().toISOString() };
 
+  // OpenCode Free dashboard probes may trigger upstream account/IP restrictions (#5149).
+  // Skip before any proxy/network call, and do not mark a working connection bad.
+  if (connection.provider === "opencode") {
+    return {
+      valid: false,
+      skipped: true,
+      error: "OpenCode Free connection probes are disabled to avoid upstream restrictions. Use the model from your client instead.",
+      latencyMs: 0,
+      testedAt: new Date().toISOString(),
+    };
+  }
+
   const effectiveProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
 
   if (effectiveProxy.connectionProxyEnabled && effectiveProxy.connectionProxyUrl && !effectiveProxy.vercelRelayUrl) {
