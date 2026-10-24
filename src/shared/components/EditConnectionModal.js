@@ -347,7 +347,12 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           />
         )}
 
-        {!isCompatible && !isAzure && !isCloudflareAi && (
+        {connection?.provider === "opencode" && (
+          <p className="text-xs text-text-muted">
+            OpenCode Free connection tests are disabled to avoid upstream rate limits. Use a model from your client instead.
+          </p>
+        )}
+        {!isCompatible && !isAzure && !isCloudflareAi && connection?.provider !== "opencode" && (
           <div className="flex items-center gap-3">
             <Button onClick={handleTest} variant="secondary" disabled={testing}>
               {testing ? "Testing..." : "Test Connection"}
