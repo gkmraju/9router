@@ -56,6 +56,15 @@ async function getInternalHeaders() {
 }
 
 export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`) {
+  // OpenCode Free probes can trigger upstream rate limits or IP restrictions (#5149).
+  // Do not send a synthetic request, even when called directly via the test API.
+  if (resolveProviderId(String(model || "").split("/")[0]) === "opencode") {
+    return {
+      ok: false,
+      skipped: true,
+      error: "OpenCode Free dashboard probes are disabled to avoid upstream restrictions. Test the model from your client instead.",
+    };
+  }
   const headers = await getInternalHeaders();
   const start = Date.now();
 
