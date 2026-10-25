@@ -394,4 +394,37 @@ describe("combo fall-through per client format (real combo.js + streaming pipeli
       expect(out).toContain('"reason":"content_filter"');
     });
   });
+  it("returns the only member's original SSE response without peeking", async () => {
+    const only = new Response(sseStream([ROLE, CONTENT, DONE], [0, 200]), {
+      status: 200, headers: { "Content-Type": "text/event-stream" },
+    });
+    const result = await handleComboChat({
+      body: { messages: [{ role: "user", content: "hi" }] },
+      models: ["openai/m0"],
+      handleSingleModel: async () => only,
+      log: LOG, comboName: "single-stream-no-peek", comboStrategy: "fallback",
+    });
+    expect(result).toBe(only);
+    expect(await result.text()).toContain('"content":"OK"');
+  });
+
+  it("returns the final member's original SSE response after an empty first member", async () => {
+    const headers = { "Content-Type": "text/event-stream" };
+    const first = new Response(sseStream([ROLE, EMPTY_STOP, DONE]), { headers });
+    const last = new Response(sseStream([ROLE, CONTENT, DONE]), { headers });
+    const tried = [];
+    const result = await handleComboChat({
+      body: { messages: [{ role: "user", content: "hi" }] },
+      models: ["openai/m0", "openai/m1"],
+      handleSingleModel: async (_body, model) => {
+        tried.push(model);
+        return model === "openai/m0" ? first : last;
+      },
+      log: LOG, comboName: "last-stream-no-peek", comboStrategy: "fallback",
+    });
+    expect(tried).toEqual(["openai/m0", "openai/m1"]);
+    expect(result).toBe(last);
+    expect(await result.text()).toContain('"content":"OK"');
+  });
+
 });
