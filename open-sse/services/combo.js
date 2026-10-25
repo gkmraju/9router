@@ -480,6 +480,14 @@ export async function handleComboChat({
       // otherwise be delivered as a successful empty answer with no failover.
       // Peek the stream for real content before committing to this candidate.
       if (result.ok) {
+        // No fallback is possible for the final member. Peeking here only buffers
+        // its stream (up to EMPTY_PEEK_DEADLINE_MS) before the client sees it.
+        // The existing JSON zero-content check also skips the final member.
+        if (i === rotatedModels.length - 1) {
+          log.info("COMBO", `Model ${modelStr} succeeded (last candidate)`);
+          return result;
+        }
+
         let peeked = null;
         try {
           peeked = await peekComboResponse(result, log);
