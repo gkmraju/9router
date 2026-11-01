@@ -4,6 +4,7 @@ import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { getExecutor } from "../executors/index.js";
 import { getImageAdapter } from "./imageProviders/index.js";
 import { urlToBase64 } from "./imageProviders/_base.js";
+import { createBinaryImageResponse } from "./imageBinaryResponse.js";
 
 function serializeRequestBody(requestBody) {
   if (typeof FormData !== "undefined" && requestBody instanceof FormData) return requestBody;
@@ -68,15 +69,7 @@ export async function handleImageGenerationCore({
           try { b64 = await urlToBase64(first.url); } catch {}
         }
         if (b64) {
-          const buf = Buffer.from(b64, "base64");
-          const fmt = (body.output_format || "png").toLowerCase();
-          const mime = fmt === "jpeg" || fmt === "jpg" ? "image/jpeg" : fmt === "webp" ? "image/webp" : "image/png";
-          return {
-            success: true,
-            response: new Response(buf, {
-              headers: { "Content-Type": mime, "Content-Disposition": `inline; filename="image.${fmt === "jpeg" ? "jpg" : fmt}"`, "Access-Control-Allow-Origin": "*" },
-            }),
-          };
+          return { success: true, response: createBinaryImageResponse(b64) };
         }
       }
 
@@ -206,19 +199,7 @@ export async function handleImageGenerationCore({
       try { b64 = await urlToBase64(first.url); } catch {}
     }
     if (b64) {
-      const buf = Buffer.from(b64, "base64");
-      const fmt = (body.output_format || "png").toLowerCase();
-      const mime = fmt === "jpeg" || fmt === "jpg" ? "image/jpeg" : fmt === "webp" ? "image/webp" : "image/png";
-      return {
-        success: true,
-        response: new Response(buf, {
-          headers: {
-            "Content-Type": mime,
-            "Content-Disposition": `inline; filename="image.${fmt === "jpeg" ? "jpg" : fmt}"`,
-            "Access-Control-Allow-Origin": "*",
-          },
-        }),
-      };
+      return { success: true, response: createBinaryImageResponse(b64) };
     }
   }
 
