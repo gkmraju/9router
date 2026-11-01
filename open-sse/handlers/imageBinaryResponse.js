@@ -1,13 +1,5 @@
 import { IMAGE_SIGNATURES } from "../config/mediaConfig.js";
 
-const EXTENSIONS = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/gif": "gif",
-  "image/webp": "webp",
-  "image/bmp": "bmp",
-};
-
 // The returned bytes are authoritative: upstream MIME and requested output_format
 // can disagree with the actual image encoding.
 export function detectImageMime(bytes) {
@@ -22,7 +14,7 @@ export function detectImageMime(bytes) {
 export function createBinaryImageResponse(base64) {
   const bytes = Buffer.from(base64, "base64");
   const mime = detectImageMime(bytes);
-  const ext = EXTENSIONS[mime] || "bin";
+  const ext = mime === "image/jpeg" ? "jpg" : mime.startsWith("image/") ? mime.slice(6) : "bin";
   return new Response(bytes, {
     headers: {
       "Content-Type": mime,
