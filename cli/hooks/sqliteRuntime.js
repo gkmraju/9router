@@ -96,10 +96,13 @@ function summarizeNpmError(stderr = "") {
 }
 
 function runNpmInstall({ cwd, pkgs, extraArgs = [], timeout = 180000 }) {
-  const args = ["install", ...pkgs, "--no-audit", "--no-fund", "--prefer-online", ...extraArgs];
+  // npm lifecycle scripts inherit npm_config_global=true from `npm install -g`.
+  // Force project scope: cwd alone does not override npm global mode.
+  const args = ["install", "--location=project", ...pkgs, "--no-audit", "--no-fund", "--prefer-online", ...extraArgs];
   const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
   const res = spawnSync(npmCmd, args, {
     cwd,
+    env: { ...process.env, npm_config_global: "false", npm_config_location: "project" },
     stdio: ["ignore", "pipe", "pipe"],
     timeout,
     shell: process.platform === "win32",
